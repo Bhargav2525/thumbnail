@@ -1,0 +1,137 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: 'thumbnail-app
+
+  Sample SAM Template for thumbnail-app
+
+  '
+Globals:
+  Function:
+    Timeout: 3
+Resources:
+  Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: thumbnail-new-bucket
+  SecondBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: thumbnail-new-second-bucket
+  MetaTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      AttributeDefinitions:
+      - AttributeName: filename
+        AttributeType: S
+      KeySchema:
+      - AttributeName: filename
+        KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
+      StreamSpecification:
+        StreamViewType: NEW_IMAGE
+  HelloWorldFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: HelloWorldFunction
+      Handler: app.lambda_handler
+      Runtime: python3.11
+      Architectures:
+      - x86_64
+      Policies:
+      - S3CrudPolicy:
+          BucketName:
+            Ref: Bucket
+      - S3CrudPolicy:
+          BucketName:
+            Ref: SecondBucket
+      Environment:
+        Variables:
+          bucket_name:
+            Ref: Bucket
+          second_bucket_name:
+            Ref: SecondBucket
+      Events:
+        HelloWorld:
+          Type: Api
+          Properties:
+            Path: /hello
+            Method: post
+    Metadata:
+      SamResourceId: HelloWorldFunction
+  ThumbnailFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ThumbnailFunction
+      Handler: app.thumbnail_generator
+      Runtime: python3.11
+      Architectures:
+      - x86_64
+      Policies:
+      - S3CrudPolicy:
+          BucketName:
+            Ref: Bucket
+      - S3CrudPolicy:
+          BucketName:
+            Ref: SecondBucket
+      - DynamoDBCrudPolicy:
+          TableName:
+            Ref: MetaTable
+      Environment:
+        Variables:
+          bucket_name:
+            Ref: Bucket
+          second_bucket_name:
+            Ref: SecondBucket
+      Events:
+        HelloWorld:
+          Type: Api
+          Properties:
+            Path: /generate
+            Method: post
+    Metadata:
+      SamResourceId: ThumbnailFunction
+  MetaDataFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: MetaDataFunction
+      Handler: app.metadata_handler
+      Runtime: python3.11
+      Architectures:
+      - x86_64
+      Policies:
+      - DynamoDBCrudPolicy:
+          TableName:
+            Ref: MetaTable
+      Environment:
+        Variables:
+          bucket_name:
+            Ref: Bucket
+          second_bucket_name:
+            Ref: SecondBucket
+      Events:
+        HelloWorld:
+          Type: Api
+          Properties:
+            Path: /metadat
+            Method: post
+    Metadata:
+      SamResourceId: MetaDataFunction
+Outputs:
+  HelloWorldApi:
+    Description: API Gateway endpoint URL for Prod stage for Hello World function
+    Value:
+      Fn::Sub: https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/hello/
+  HelloWorldFunction:
+    Description: Hello World Lambda Function ARN
+    Value:
+      Fn::GetAtt:
+      - HelloWorldFunction
+      - Arn
+  HelloWorldFunctionIamRole:
+    Description: Implicit IAM Role created for Hello World function
+    Value:
+      Fn::GetAtt:
+      - HelloWorldFunctionRole
+      - Arn
